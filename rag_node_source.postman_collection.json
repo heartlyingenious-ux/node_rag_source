@@ -1,0 +1,71 @@
+{
+  "info": {
+    "name": "RAG Node Source",
+    "description": "Endpoints for the RAG Express app. Set `baseUrl` to where the server runs (default http://localhost:3000).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "sessionId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health Check (DB insert test)",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/",
+        "description": "Connects to MongoDB and inserts a test document into rag_doc.docs."
+      }
+    },
+    {
+      "name": "Load Document",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/load-document",
+        "description": "Parses the first two pages of ./docs/policy.pdf, creates embeddings per line and stores them in rag_doc.docs."
+      }
+    },
+    {
+      "name": "Test Embeddings",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/embeddings",
+        "description": "Returns the embedding for the text \"Hello World\"."
+      }
+    },
+    {
+      "name": "Conversation - New Session",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/conversation",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"message\": \"What is the leave policy?\"\n}"
+        },
+        "description": "Starts a new session (no sessionId) and answers the message using vector search over the loaded document."
+      }
+    },
+    {
+      "name": "Conversation - Existing Session",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/conversation",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sessionId\": \"{{sessionId}}\",\n  \"message\": \"Can you explain that in more detail?\"\n}"
+        },
+        "description": "Continues an existing session. Set the `sessionId` collection variable to an _id from the rag_doc.sessions collection."
+      }
+    },
+    {
+      "name": "Users",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/users",
+        "description": "Default Express users route."
+      }
+    }
+  ]
+}

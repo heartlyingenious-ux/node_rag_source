@@ -2,8 +2,9 @@ var express = require("express");
 var router = express.Router();
 const { MongoClient, ObjectId } = require("mongodb");
 const { createEmbedings } = require("./embedings");
-const { GoogleGenAI } = require("@google/genai");
+const { generateAnswer } = require("./llm");
 const fs = require("fs");
+const config = require("../config");
 
 var PDFParser = require("pdf2json");
 const parser = new PDFParser(this, 1);
@@ -11,8 +12,8 @@ const parser = new PDFParser(this, 1);
 /* GET home page. */
 router.get("/", async function (req, res, next) {
   try {
-    const connection = await MongoClient.connect(process.env.DB);
-    const db = connection.db("rag_doc");
+    const connection = await MongoClient.connect(config.mongo.url);
+    const db = connection.db(config.mongo.dbName);
     const collection = db.collection("docs");
     await collection.insertOne({ test: "Success" });
     await connection.close();
@@ -31,20 +32,19 @@ router.post("/load-document", async (req, res) => {
 
     parser.once("pdfParser_dataReady", async (data) => {
       try {
-        // Only keep the first two pages of the PDF
-        const MAX_PAGES = 2;
+        // Only keep the first N pages of the PDF
         const pages = parser
           .getRawTextContent()
           .split(/\r?\n-+Page \(\d+\) Break-+\r?\n/);
-        const limitedText = pages.slice(0, MAX_PAGES).join("\n");
+        const limitedText = pages.slice(0, config.maxPdfPages).join("\n");
 
         await fs.writeFileSync("./context.txt", limitedText);
 
         const content = await fs.readFileSync("./context.txt", "utf-8");
         const splitContent = content.split("\n");
 
-        const connection = await MongoClient.connect(process.env.DB);
-        const db = connection.db("rag_doc");
+        const connection = await MongoClient.connect(config.mongo.url);
+        const db = connection.db(config.mongo.dbName);
         const collection = db.collection("docs");
 
         for (const line of splitContent) {
@@ -73,7 +73,7 @@ router.post("/load-document", async (req, res) => {
       }
     });
 
-    parser.loadPDF("./docs/policy.pdf");
+    parser.loadPDF(config.pdfPath);
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Error" });
@@ -93,8 +93,8 @@ router.get("/embeddings", async (req, res) => {
 router.post("/conversation", async (req, res) => {
   try {
     let sessionId = req.body.sessionId;
-    const connection = await MongoClient.connect(process.env.DB);
-    const db = connection.db("rag_doc");
+    const connection = await MongoClient.connect(config.mongo.url);
+    const db = connection.db(config.mongo.dbName);
 
     if (!sessionId) {
       const collection = db.collection("sessions");
@@ -137,7 +137,7 @@ router.post("/conversation", async (req, res) => {
     const vectorSearch = await docsCollection.aggregate([
       {
         $vectorSearch: {
-          index: "default",
+          index: config.mongo.vectorIndex,
           path: "embedding",
           queryVector: messageVector.embeddings[0].values,
           numCandidates: 150,
@@ -161,10 +161,6 @@ router.post("/conversation", async (req, res) => {
       finalResult.push(doc);
     }
 
-    const ai = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY,
-    });
-
     const context = finalResult.map((doc) => doc.text).join("\n");
 
     const prompt = `
@@ -179,14 +175,11 @@ router.post("/conversation", async (req, res) => {
         Answer the question using only the information provided in the context.
         `;
 
-    const chat = await ai.models.generateContent({
-      model: "gemini-flash-latest",
-      contents: prompt,
-    });
+    const answer = await generateAnswer(prompt);
 
     console.log(prompt);
 
-    return res.json(chat.text);
+    return res.json(answer);
   } catch (error) {
     res.json({ message: "Something went wrong" });
     console.log(error);

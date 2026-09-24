@@ -1,7 +1,8 @@
 const { GoogleGenAI } = require("@google/genai");
+const config = require("../config");
 
 function getGeminiClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = config.gemini.apiKey;
 
   if (!apiKey || !apiKey.trim()) {
     throw new Error(
@@ -30,18 +31,53 @@ function isRetryableEmbeddingError(error) {
   );
 }
 
+// nomic-embed-text expects a task prefix on every input
+const OLLAMA_TASK_PREFIX = {
+  RETRIEVAL_DOCUMENT: "search_document: ",
+  RETRIEVAL_QUERY: "search_query: ",
+};
+
+async function createOllamaEmbedings(text, taskType) {
+  const { url: baseUrl, embedModel: model } = config.ollama;
+  const prefix = OLLAMA_TASK_PREFIX[taskType] || "";
+
+  const response = await fetch(`${baseUrl}/api/embed`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      input: prefix + text,
+      dimensions: config.embeddingDimensions,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Ollama embedding failed (${response.status}): ${await response.text()}. Is Ollama running and is "${model}" pulled?`
+    );
+  }
+
+  const data = await response.json();
+  // Match the Gemini response shape so callers don't need to change
+  return { embeddings: data.embeddings.map((values) => ({ values })) };
+}
+
 async function createEmbedings(text, taskType = "RETRIEVAL_DOCUMENT") {
+  if (config.llmProvider === "ollama") {
+    return createOllamaEmbedings(text, taskType);
+  }
+
   const ai = getGeminiClient();
   let lastError;
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
       const response = await ai.models.embedContent({
-        model: "gemini-embedding-001",
+        model: config.gemini.embedModel,
         contents: text,
         config: {
           taskType: taskType,
-          outputDimensionality: 1536,
+          outputDimensionality: config.embeddingDimensions,
         },
       });
 
