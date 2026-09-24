@@ -6,6 +6,7 @@
     "start": "node ./bin/www"
   },
   "dependencies": {
+    "@google/genai": "^2.24.0",
     "cookie-parser": "~1.4.4",
     "debug": "~2.6.9",
     "dotenv": "^16.4.1",
@@ -14,7 +15,6 @@
     "jade": "~1.11.0",
     "mongodb": "^6.3.0",
     "morgan": "~1.9.1",
-    "openai": "^4.28.0",
     "pdf2json": "^3.0.5"
   }
 }

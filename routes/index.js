@@ -2,7 +2,7 @@ var express = require("express");
 var router = express.Router();
 const { MongoClient, ObjectId } = require("mongodb");
 const { createEmbedings } = require("./embedings");
-const {OpenAI} = require("openai")
+const { GoogleGenAI } = require("@google/genai");
 const fs = require("fs");
 
 var PDFParser = require("pdf2json");
@@ -24,28 +24,56 @@ router.get("/", async function (req, res, next) {
 
 router.post("/load-document", async (req, res) => {
   try {
-    parser.loadPDF("./docs/policy.pdf");
-    parser.on("pdfParser_dataReady", async (data) => {
-      await fs.writeFileSync("./context.txt", parser.getRawTextContent());
-
-      const content = await fs.readFileSync("./context.txt", "utf-8");
-      const splitContent = content.split("\n");
-
-      const connection = await MongoClient.connect(process.env.DB);
-      const db = connection.db("rag_doc");
-      const collection = db.collection("docs");
-
-      for (line of splitContent) {
-        const embedings = await createEmbedings(line);
-        await collection.insertOne({
-          text: line,
-          embedding: embedings.data[0].embedding,
-        });
-        console.log(line);
-      }
-      await connection.close();
-      res.json("Done");
+    parser.once("pdfParser_dataError", (error) => {
+      console.error("PDF parse error:", error);
+      return res.status(500).json({ message: "Failed to parse PDF document." });
     });
+
+    parser.once("pdfParser_dataReady", async (data) => {
+      try {
+        // Only keep the first two pages of the PDF
+        const MAX_PAGES = 2;
+        const pages = parser
+          .getRawTextContent()
+          .split(/\r?\n-+Page \(\d+\) Break-+\r?\n/);
+        const limitedText = pages.slice(0, MAX_PAGES).join("\n");
+
+        await fs.writeFileSync("./context.txt", limitedText);
+
+        const content = await fs.readFileSync("./context.txt", "utf-8");
+        const splitContent = content.split("\n");
+
+        const connection = await MongoClient.connect(process.env.DB);
+        const db = connection.db("rag_doc");
+        const collection = db.collection("docs");
+
+        for (const line of splitContent) {
+          if (!line || !line.trim()) continue;
+
+          try {
+            const embedings = await createEmbedings(line);
+            await collection.insertOne({
+              text: line,
+              embedding: embedings.embeddings[0].values,
+            });
+            console.log(line);
+          } catch (error) {
+            console.error(`Skipping line due to embedding failure: ${line.slice(0, 120)}`);
+            continue;
+          }
+        }
+
+        await connection.close();
+        return res.json("Done");
+      } catch (error) {
+        console.error("Document load error:", error);
+        return res.status(500).json({
+          message: error.message || "Error while loading document.",
+        });
+      }
+    });
+
+    parser.loadPDF("./docs/policy.pdf");
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Error" });
@@ -100,7 +128,10 @@ router.post("/conversation", async (req, res) => {
 
     // Convert message to vector
     console.log(req.body.message);
-    const messageVector = await createEmbedings(req.body.message);
+    const messageVector = await createEmbedings(
+      req.body.message,
+      "RETRIEVAL_QUERY",
+    );
 
     const docsCollection = db.collection("docs");
     const vectorSearch = await docsCollection.aggregate([
@@ -108,7 +139,7 @@ router.post("/conversation", async (req, res) => {
         $vectorSearch: {
           index: "default",
           path: "embedding",
-          queryVector: messageVector.data[0].embedding,
+          queryVector: messageVector.embeddings[0].values,
           numCandidates: 150,
           limit: 10,
         },
@@ -124,37 +155,38 @@ router.post("/conversation", async (req, res) => {
       },
     ]);
 
-    let finalResult = []
+    let finalResult = [];
 
-    for await(let doc of vectorSearch){
-      finalResult.push(doc)
+    for await (let doc of vectorSearch) {
+      finalResult.push(doc);
     }
 
-    const ai = new OpenAI({
-      apiKey : process.env.OPENAIKEY
-    })
+    const ai = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+    });
 
-    const chat = await ai.chat.completions.create({
-      model : "gpt-4",
-      messages : [
-        {
-          role : "system",
-          content : "You are a humble helper who can answer for questions asked by users from the given context."
-        },
-        {
-          role : "user",
-          content : `${finalResult.map(doc => doc.text + "\n")}
-          \n
-          From the above context, answer the following question: ${message}`
-        }
-      ]
-    })
+    const context = finalResult.map((doc) => doc.text).join("\n");
 
-    console.log(`${finalResult.map(doc => doc.text + "\n")}
-    \n
-    From the above context, answer the following question: ${message}`)
+    const prompt = `
+        You are a humble helper who answers questions using the provided context.
 
-    return res.json(chat.choices[0].message.content);
+        Context:
+        ${context}
+
+        Question:
+        ${message}
+
+        Answer the question using only the information provided in the context.
+        `;
+
+    const chat = await ai.models.generateContent({
+      model: "gemini-flash-latest",
+      contents: prompt,
+    });
+
+    console.log(prompt);
+
+    return res.json(chat.text);
   } catch (error) {
     res.json({ message: "Something went wrong" });
     console.log(error);
