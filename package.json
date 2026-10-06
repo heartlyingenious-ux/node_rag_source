@@ -1,20 +1,38 @@
 {
-  "name": "source",
-  "version": "0.0.0",
+  "name": "rag-node-source",
+  "version": "0.1.0",
   "private": true,
+  "description": "Learning RAG with Express, MongoDB Atlas Vector Search, Gemini and Ollama",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "start": "node ./bin/www"
+    "start": "node ./bin/www",
+    "dev": "node --watch ./bin/www",
+    "test": "node --test --require ./test/setup.js test/*.test.js",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@google/genai": "^2.24.0",
-    "cookie-parser": "~1.4.4",
-    "debug": "~2.6.9",
     "dotenv": "^16.4.1",
-    "express": "~4.16.1",
-    "http-errors": "~1.6.3",
-    "jade": "~1.11.0",
-    "mongodb": "^6.3.0",
-    "morgan": "~1.9.1",
-    "pdf2json": "^3.0.5"
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.3.0",
+    "http-errors": "^2.0.1",
+    "mongodb": "^6.21.0",
+    "pdf2json": "^3.0.5",
+    "pino": "^10.4.0",
+    "pino-http": "^11.0.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0",
+    "pino-pretty": "^13.2.0",
+    "prettier": "^3.9.9",
+    "supertest": "^7.3.1"
   }
 }

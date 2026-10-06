@@ -1,2 +1,5 @@
-.env
 node_modules
+.env
+.DS_Store
+# extracted PDF text, regenerate locally when needed
+context.txt

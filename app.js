@@ -1,42 +1,49 @@
-var createError = require('http-errors');
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
-const dotenv = require("dotenv").config()
+const express = require("express");
+const createError = require("http-errors");
+const helmet = require("helmet");
+const pinoHttp = require("pino-http");
+const { rateLimit } = require("express-rate-limit");
+const config = require("./config");
+const logger = require("./lib/logger");
+const indexRouter = require("./routes/index");
 
-var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/users');
+const app = express();
 
-var app = express();
+app.use(helmet());
+app.use(pinoHttp({ logger }));
+app.use(express.json({ limit: "100kb" }));
 
-// view engine setup
-app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'jade');
+// Every /conversation call costs an embedding + an LLM call
+if (config.rateLimitPerMinute > 0) {
+  app.use(
+    "/conversation",
+    rateLimit({
+      windowMs: 60_000,
+      limit: config.rateLimitPerMinute,
+      standardHeaders: "draft-8",
+      legacyHeaders: false,
+      message: { message: "Too many requests, slow down" },
+    }),
+  );
+}
 
-app.use(logger('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
-
-app.use('/', indexRouter);
-app.use('/users', usersRouter);
+app.use("/", indexRouter);
 
 // catch 404 and forward to error handler
-app.use(function(req, res, next) {
-  next(createError(404));
+app.use((req, res, next) => {
+  next(createError(404, `Route ${req.method} ${req.path} not found`));
 });
 
-// error handler
-app.use(function(err, req, res, next) {
-  // set locals, only providing error in development
-  res.locals.message = err.message;
-  res.locals.error = req.app.get('env') === 'development' ? err : {};
+// JSON error handler. Express 5 forwards errors thrown in async handlers here.
+app.use((err, req, res, _next) => {
+  const status = err.status || err.statusCode || 500;
+  if (status >= 500) req.log.error({ err }, "Request failed");
 
-  // render the error page
-  res.status(err.status || 500);
-  res.render('error');
+  // Hide internal error details in production; 4xx messages are meant for the client
+  const exposeMessage = status < 500 || config.env === "development";
+  res.status(status).json({
+    message: exposeMessage ? err.message : "Internal server error",
+  });
 });
 
 module.exports = app;

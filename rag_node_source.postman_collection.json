@@ -1,70 +1,138 @@
 {
   "info": {
     "name": "RAG Node Source",
-    "description": "Endpoints for the RAG Express app. Set `baseUrl` to where the server runs (default http://localhost:3000).",
+    "description": "Endpoints for the RAG Express app. Set `baseUrl` to where the server runs (default http://localhost:3000). `jobId` and `sessionId` are filled in automatically by the requests that return them.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:3000" },
-    { "key": "sessionId", "value": "" }
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "sessionId",
+      "value": ""
+    },
+    {
+      "key": "jobId",
+      "value": ""
+    }
   ],
   "item": [
     {
-      "name": "Health Check (DB insert test)",
+      "name": "Health",
       "request": {
         "method": "GET",
-        "url": "{{baseUrl}}/",
-        "description": "Connects to MongoDB and inserts a test document into rag_doc.docs."
+        "url": "{{baseUrl}}/health",
+        "description": "Checks MongoDB (and Ollama when a provider uses it). 200 when healthy, 503 when degraded."
       }
     },
     {
       "name": "Load Document",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "if (body.jobId) pm.collectionVariables.set(\"jobId\", body.jobId);"
+            ]
+          }
+        }
+      ],
       "request": {
         "method": "POST",
         "url": "{{baseUrl}}/load-document",
-        "description": "Parses the first two pages of ./docs/policy.pdf, creates embeddings per line and stores them in rag_doc.docs."
+        "description": "Starts a background job that parses ./docs/policy.pdf, embeds each line and replaces the contents of rag_doc.docs. Returns 202 with a jobId; 409 if a load is already running."
+      }
+    },
+    {
+      "name": "Job Status",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/jobs/{{jobId}}",
+        "description": "Progress ({done, total}) and the final result of a load job."
       }
     },
     {
       "name": "Test Embeddings",
       "request": {
         "method": "GET",
-        "url": "{{baseUrl}}/embeddings",
-        "description": "Returns the embedding for the text \"Hello World\"."
+        "url": {
+          "raw": "{{baseUrl}}/embeddings?text=ambulance",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "embeddings"
+          ],
+          "query": [
+            {
+              "key": "text",
+              "value": "ambulance"
+            }
+          ]
+        },
+        "description": "Returns the provider, model, dimensions and vector for `text`."
       }
     },
     {
       "name": "Conversation - New Session",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "if (body.sessionId) pm.collectionVariables.set(\"sessionId\", body.sessionId);"
+            ]
+          }
+        }
+      ],
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
         "url": "{{baseUrl}}/conversation",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"message\": \"What is the leave policy?\"\n}"
+          "raw": "{\n  \"message\": \"Is ambulance cover included?\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
-        "description": "Starts a new session (no sessionId) and answers the message using vector search over the loaded document."
+        "description": "Starts a new session and answers using vector search. Returns {sessionId, answer, sources}; sessionId is saved to the collection variable."
       }
     },
     {
       "name": "Conversation - Existing Session",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
         "url": "{{baseUrl}}/conversation",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"sessionId\": \"{{sessionId}}\",\n  \"message\": \"Can you explain that in more detail?\"\n}"
+          "raw": "{\n  \"sessionId\": \"{{sessionId}}\",\n  \"message\": \"Can you explain that in more detail?\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
-        "description": "Continues an existing session. Set the `sessionId` collection variable to an _id from the rag_doc.sessions collection."
-      }
-    },
-    {
-      "name": "Users",
-      "request": {
-        "method": "GET",
-        "url": "{{baseUrl}}/users",
-        "description": "Default Express users route."
+        "description": "Continues the session created by the previous request."
       }
     }
   ]
