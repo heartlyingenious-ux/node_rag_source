@@ -1,13 +1,16 @@
 const { GoogleGenAI } = require("@google/genai");
 const config = require("../config");
 
-async function generateWithOllama(prompt) {
-  const { url: baseUrl, chatModel: model } = config.ollama;
+// Local Ollama and Ollama Cloud share the same API; cloud needs an API key
+async function generateWithOllama(prompt, { url: baseUrl, chatModel: model, apiKey }) {
   console.log({ baseUrl, model, prompt });
+
+  const headers = { "Content-Type": "application/json" };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
   const response = await fetch(`${baseUrl}/api/generate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ model, prompt, stream: false }),
   });
 
@@ -35,8 +38,14 @@ async function generateWithGemini(prompt) {
 }
 
 async function generateAnswer(prompt) {
-  if (config.llmProvider === "ollama") {
-    return generateWithOllama(prompt);
+  if (config.chatProvider === "ollama") {
+    return generateWithOllama(prompt, config.ollama);
+  }
+  if (config.chatProvider === "ollama-cloud") {
+    if (!config.ollamaCloud.apiKey) {
+      throw new Error("OLLAMA_API_KEY is missing. Add it to your .env file to use ollama-cloud.");
+    }
+    return generateWithOllama(prompt, config.ollamaCloud);
   }
   return generateWithGemini(prompt);
 }

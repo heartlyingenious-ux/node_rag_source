@@ -63,7 +63,7 @@ async function createOllamaEmbedings(text, taskType) {
 }
 
 async function createEmbedings(text, taskType = "RETRIEVAL_DOCUMENT") {
-  if (config.llmProvider === "ollama") {
+  if (config.embeddingProvider === "ollama") {
     return createOllamaEmbedings(text, taskType);
   }
 
