@@ -50,6 +50,12 @@ async function ask({ message, sessionId }) {
   const queryVector = await embed(message, "RETRIEVAL_QUERY");
   const sources = await searchDocs(queryVector);
 
+  if (sources.length === 0) {
+    const answer = "I couldn't find anything about that in the policy document.";
+    await saveMessage(session, "ASSISTANT", answer);
+    return { sessionId: session, answer, sources }; // no LLM call: free, instant, can't hallucinate
+  }
+
   const prompt = buildPrompt(sources.map((doc) => doc.text).join("\n"), message);
   logger.debug({ prompt }, "Prompt sent to LLM");
 

@@ -45,6 +45,8 @@ const schema = z
     OLLAMA_CLOUD_URL: z.string().url().default("https://ollama.com"),
     OLLAMA_API_KEY: z.string().trim().optional(),
     OLLAMA_CLOUD_CHAT_MODEL: z.string().default("gpt-oss:120b"),
+
+    MIN_SCORE: z.coerce.number().min(0).max(1).default(0.81),
   })
   .superRefine((e, ctx) => {
     const usesGemini = e.EMBEDDING_PROVIDER === "gemini" || e.CHAT_PROVIDER === "gemini";
@@ -117,6 +119,8 @@ const config = {
     apiKey: e.OLLAMA_API_KEY,
     chatModel: e.OLLAMA_CLOUD_CHAT_MODEL,
   },
+
+  minScore: e.MIN_SCORE,
 };
 
 module.exports = config;

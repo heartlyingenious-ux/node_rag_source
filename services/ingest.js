@@ -22,10 +22,12 @@ function readPdfPages(pdfPath) {
 
 // Lesson 3 (chunking): replace this one-line-per-chunk split with chunkText()
 function splitIntoChunks(pages) {
+  // The PDF text mixes CRLF and LF line endings
   return pages
     .join("\n")
-    .split("\n")
-    .filter((line) => line.trim());
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 async function ingestDocument(job) {
