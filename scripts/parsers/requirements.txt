@@ -1,0 +1,5 @@
+# Install into .venv-parsers (see README "Comparing PDF parsers").
+# Docling needs PyTorch; install the CPU build first to avoid ~4 GB of CUDA libraries:
+#   .venv-parsers/bin/pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+pymupdf4llm
+docling

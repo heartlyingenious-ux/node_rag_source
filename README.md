@@ -207,6 +207,16 @@ No SDK is needed. The app calls Ollama's REST API with Node's built-in `fetch`.
 
 ---
 
+## Comparing PDF parsers
+
+The app reads the PDF with `pdf2json` by default. To compare it with better parsers (`pymupdf4llm`, Docling, Gemini) and load the best output instead, follow **[scripts/parsers/README.md](scripts/parsers/README.md)**. In short:
+
+```bash
+npm run parse:compare     # every parser → parsed/<name>.md
+npm run parse:report      # passages side by side → parsed/report.md
+# then set DOC_MARKDOWN_PATH=parsed/<name>.md in .env and call /load-document
+```
+
 ## Project structure
 
 ```

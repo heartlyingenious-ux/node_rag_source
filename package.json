@@ -12,7 +12,9 @@
     "test": "node --test --require ./test/setup.js test/*.test.js",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "parse:compare": "node scripts/parse-compare.js",
+    "parse:report": "node scripts/parse-report.js"
   },
   "dependencies": {
     "@google/genai": "^2.24.0",

@@ -2,7 +2,7 @@ const js = require("@eslint/js");
 const globals = require("globals");
 
 module.exports = [
-  { ignores: ["node_modules/"] },
+  { ignores: ["node_modules/", ".venv-parsers/", "parsed/"] },
   js.configs.recommended,
   {
     languageOptions: {

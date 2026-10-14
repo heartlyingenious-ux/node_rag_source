@@ -3,3 +3,7 @@ node_modules
 .DS_Store
 # extracted PDF text, regenerate locally when needed
 context.txt
+.venv-parsers/*
+# PDF parser bake-off (scripts/parse-compare.js)
+.venv-parsers
+parsed/

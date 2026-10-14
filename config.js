@@ -21,6 +21,8 @@ const schema = z
 
     MAX_PDF_PAGES: z.coerce.number().int().positive().optional(),
     PDF_PATH: z.string().default("./docs/policy.pdf"),
+    // Optional: load a parser's Markdown output (npm run parse:compare) instead of the PDF
+    DOC_MARKDOWN_PATH: z.string().optional(),
     // Parallel embedding calls during /load-document
     INGEST_CONCURRENCY: z.coerce.number().int().positive().optional(),
 
@@ -90,6 +92,7 @@ const config = {
   // Gemini reads 2 pages, one call at a time, to stay within the free tier.
   maxPdfPages: e.MAX_PDF_PAGES ?? (localEmbeddings ? Infinity : 2),
   pdfPath: e.PDF_PATH,
+  docMarkdownPath: e.DOC_MARKDOWN_PATH,
   ingestConcurrency: e.INGEST_CONCURRENCY ?? (localEmbeddings ? 4 : 1),
 
   rateLimitPerMinute: e.RATE_LIMIT_PER_MINUTE,
